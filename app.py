@@ -1,3 +1,4 @@
+from market_engine import get_market_signal
 import streamlit as st
 from recommendation_engine import get_today_recommendations
 
@@ -10,7 +11,7 @@ st.set_page_config(
 
 recs = get_today_recommendations()
 top = recs[0]
-
+market = get_market_signal()
 st.markdown("""
 <style>
 .block-container {
@@ -175,11 +176,23 @@ st.markdown("## 추천 이유")
 for reason in top["reasons"]:
     st.markdown(f'<div class="reason">✅ {reason}</div>', unsafe_allow_html=True)
 
-st.markdown("## 오늘 시장 온도")
+st.markdown("## 🟢 시장 신호등")
 
-col1, col2 = st.columns(2)
-col1.metric("시장점수", "72점")
-col2.metric("시장상태", "긍정")
+st.markdown(f"""
+<div class="rank-card">
+    <div class="rank-title">{market['signal']} 현재 시장 : {market['status']}</div>
+    <div class="small">시장점수 {market['score']}점</div>
+    <div class="small">{market['summary']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+for sector in market["sectors"]:
+    st.markdown(f"""
+<div class="rank-card">
+    <div class="rank-title">{sector['name']}</div>
+    <div class="small">{sector['status']}</div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("## 오늘의 TOP3")
 

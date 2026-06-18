@@ -253,16 +253,21 @@ medals = ["🥇", "🥈", "🥉"]
 
 for idx, item in enumerate(recs):
     item_price = item.get("price", {})
-    price_text = ""
+    item_summary = item.get("summary", "")
+
+    price_line = ""
     if item_price.get("data_ok"):
-        price_text = f"<div class='small'>현재가 {item_price.get('current_price', 0):,}원 · 등락률 {item_price.get('change_rate', 0)}%</div>"
+        price_line = (
+            f"현재가 {item_price.get('current_price', 0):,}원 · "
+            f"등락률 {item_price.get('change_rate', 0)}%"
+        )
 
     st.markdown(f"""
 <div class="rank-card">
     <div class="rank-title">{medals[idx]} {item['name']}</div>
     <div>{item['score']}점 · 상승확률 {item['probability']}% · {item['judgement']}</div>
-    {price_text}
-    <div class="small">{item['summary']}</div>
+    <div class="small">{price_line}</div>
+    <div class="small">{item_summary}</div>
 </div>
 """, unsafe_allow_html=True)
 

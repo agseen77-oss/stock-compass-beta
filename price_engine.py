@@ -1,56 +1,142 @@
+from functools import lru_cache
+from datetime import datetime, timedelta
+import ast
+import requests
 import yfinance as yf
-
-
-STOCK_CODES = {
-    "대한전선": "001440.KS",
-    "LS ELECTRIC": "010120.KS",
-    "HD현대일렉트릭": "267260.KS",
-    "SK하이닉스": "000660.KS",
-    "한미반도체": "042700.KS",
-    "한화에어로스페이스": "012450.KS",
-}
+from stock_universe import get_ticker
 
 
 def get_price_data(stock_name):
-    ticker = STOCK_CODES.get(stock_name)
-
+    ticker = get_ticker(stock_name)
     if not ticker:
-        return _empty_price()
+        return _empty_price("NO_TICKER")
+    return _download_price(ticker)
+
+
+@lru_cache(maxsize=128)
+def _download_price(ticker):
+    symbol = _to_krx_code(ticker)
+
+    for source_name, data in [
+        ("yahoo_direct", _safe_yahoo_chart(ticker)),
+        ("yfinance", _safe_yfinance(ticker)),
+        ("naver", _safe_naver(symbol)),
+    ]:
+        result = _make_price_result(data, source=source_name, ticker=ticker)
+        if result["data_ok"]:
+            return result
+
+    return _empty_price("ALL_PRICE_SOURCES_FAILED")
+
+
+def _safe_yahoo_chart(ticker):
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        params = {"range": "6mo", "interval": "1d", "includePrePost": "false", "events": "history"}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, params=params, headers=headers, timeout=12)
+        response.raise_for_status()
+        payload = response.json()
+
+        result = payload.get("chart", {}).get("result", [])
+        if not result:
+            return None
+
+        quote = result[0].get("indicators", {}).get("quote", [])
+        if not quote:
+            return None
+
+        close = [x for x in quote[0].get("close", []) if x is not None]
+        volume = [x for x in quote[0].get("volume", []) if x is not None]
+
+        if len(close) < 2:
+            return None
+
+        return {"Close": close, "Volume": volume}
+    except Exception:
+        return None
+
+
+def _safe_yfinance(ticker):
+    try:
+        data = yf.Ticker(ticker).history(period="6mo", interval="1d", auto_adjust=True)
+        if data is not None and not data.empty:
+            return data
+    except Exception:
+        pass
 
     try:
-        data = yf.download(
-            ticker,
-            period="6mo",
-            interval="1d",
-            progress=False,
-            auto_adjust=True
+        data = yf.download(ticker, period="6mo", interval="1d", progress=False, auto_adjust=True, threads=False)
+        if data is not None and not data.empty:
+            return data
+    except Exception:
+        pass
+
+    return None
+
+
+def _safe_naver(symbol):
+    try:
+        end = datetime.now()
+        start = end - timedelta(days=240)
+        url = (
+            "https://api.finance.naver.com/siseJson.naver"
+            f"?symbol={symbol}&requestType=1"
+            f"&startTime={start.strftime('%Y%m%d')}"
+            f"&endTime={end.strftime('%Y%m%d')}"
+            "&timeframe=day"
         )
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": f"https://finance.naver.com/item/sise_day.naver?code={symbol}",
+        }
+        response = requests.get(url, headers=headers, timeout=12)
+        response.raise_for_status()
+        response.encoding = "euc-kr"
+        rows = ast.literal_eval(response.text.strip())
 
-        if data is None or data.empty:
-            return _empty_price()
+        closes, volumes = [], []
+        for row in rows[1:]:
+            if len(row) >= 6 and row[4] is not None and row[5] is not None:
+                closes.append(float(row[4]))
+                volumes.append(float(row[5]))
 
-        close = data["Close"]
-        volume = data["Volume"]
+        if len(closes) < 2:
+            return None
 
-        current_price = float(close.iloc[-1])
-        prev_price = float(close.iloc[-2]) if len(close) >= 2 else current_price
+        return {"Close": closes, "Volume": volumes}
+    except Exception:
+        return None
+
+
+def _make_price_result(data, source, ticker=""):
+    if data is None:
+        return _empty_price(f"{source}_NO_DATA")
+
+    try:
+        close = _get_close(data)
+        volume = _get_volume(data)
+
+        close = [float(x) for x in close if x is not None]
+        volume = [float(x) for x in volume if x is not None]
+
+        if len(close) < 2 or len(volume) < 2:
+            return _empty_price(f"{source}_SHORT_DATA")
+
+        current_price = close[-1]
+        prev_price = close[-2]
         change_rate = ((current_price - prev_price) / prev_price) * 100 if prev_price else 0
 
-        ma5 = float(close.rolling(5).mean().iloc[-1])
-        ma20 = float(close.rolling(20).mean().iloc[-1])
-        ma60 = float(close.rolling(60).mean().iloc[-1]) if len(close) >= 60 else ma20
+        ma5 = _moving_average(close, 5)
+        ma20 = _moving_average(close, 20)
+        ma60 = _moving_average(close, 60)
 
-        avg_volume20 = float(volume.rolling(20).mean().iloc[-1]) if len(volume) >= 20 else float(volume.mean())
-        last_volume = float(volume.iloc[-1])
+        avg_volume20 = _moving_average(volume, 20)
+        last_volume = volume[-1]
         volume_ratio = last_volume / avg_volume20 if avg_volume20 else 1
 
-        high_52w = float(close.max())
-        distance_from_high = ((current_price - high_52w) / high_52w) * 100 if high_52w else 0
-
-        chart_score = _score_chart(current_price, ma5, ma20, ma60)
-        volume_score = _score_volume(volume_ratio)
-        momentum_score = _score_momentum(change_rate)
-        volatility_score = _score_volatility(close)
+        high_6m = max(close)
+        distance_from_high = ((current_price - high_6m) / high_6m) * 100 if high_6m else 0
 
         return {
             "ticker": ticker,
@@ -61,20 +147,46 @@ def get_price_data(stock_name):
             "ma60": round(ma60),
             "volume_ratio": round(volume_ratio, 2),
             "distance_from_high": round(distance_from_high, 2),
-            "chart_score": chart_score,
-            "volume_score": volume_score,
-            "momentum_score": momentum_score,
-            "volatility_score": volatility_score,
-            "data_ok": True
+            "chart_score": _score_chart(current_price, ma5, ma20, ma60),
+            "volume_score": _score_volume(volume_ratio),
+            "momentum_score": _score_momentum(change_rate),
+            "volatility_score": _score_volatility(close),
+            "source": source,
+            "error_reason": "",
+            "data_ok": True,
         }
-
     except Exception:
-        return _empty_price()
+        return _empty_price(f"{source}_PARSE_FAILED")
+
+
+def _get_close(data):
+    if isinstance(data, dict):
+        return data["Close"]
+    value = data["Close"]
+    if hasattr(value, "columns"):
+        return value.iloc[:, 0].dropna().tolist()
+    return value.dropna().tolist()
+
+
+def _get_volume(data):
+    if isinstance(data, dict):
+        return data["Volume"]
+    value = data["Volume"]
+    if hasattr(value, "columns"):
+        return value.iloc[:, 0].dropna().tolist()
+    return value.dropna().tolist()
+
+
+def _moving_average(values, n):
+    if not values:
+        return 0
+    if len(values) < n:
+        return sum(values) / len(values)
+    return sum(values[-n:]) / n
 
 
 def _score_chart(price, ma5, ma20, ma60):
-    score = 50
-
+    score = 45
     if price > ma5:
         score += 10
     if price > ma20:
@@ -82,10 +194,9 @@ def _score_chart(price, ma5, ma20, ma60):
     if price > ma60:
         score += 15
     if ma5 > ma20:
-        score += 5
+        score += 8
     if ma20 > ma60:
-        score += 5
-
+        score += 7
     return max(0, min(100, score))
 
 
@@ -114,12 +225,22 @@ def _score_momentum(change_rate):
 
 
 def _score_volatility(close):
-    returns = close.pct_change().dropna()
-
-    if len(returns) < 20:
+    if len(close) < 21:
         return 60
 
-    vol = float(returns.tail(20).std() * 100)
+    returns = []
+    for i in range(1, len(close)):
+        prev, curr = close[i - 1], close[i]
+        if prev:
+            returns.append((curr - prev) / prev)
+
+    recent = returns[-20:]
+    if len(recent) < 5:
+        return 60
+
+    avg = sum(recent) / len(recent)
+    variance = sum((x - avg) ** 2 for x in recent) / len(recent)
+    vol = (variance ** 0.5) * 100
 
     if vol <= 1.5:
         return 85
@@ -130,7 +251,11 @@ def _score_volatility(close):
     return 45
 
 
-def _empty_price():
+def _to_krx_code(ticker):
+    return ticker.replace(".KS", "").replace(".KQ", "").strip()
+
+
+def _empty_price(reason=""):
     return {
         "ticker": "",
         "current_price": 0,
@@ -144,5 +269,7 @@ def _empty_price():
         "volume_score": 50,
         "momentum_score": 50,
         "volatility_score": 50,
-        "data_ok": False
+        "source": "",
+        "error_reason": reason,
+        "data_ok": False,
     }

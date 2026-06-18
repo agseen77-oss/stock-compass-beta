@@ -20,6 +20,12 @@ news_list = get_today_news()
 summary = get_today_summary()
 score = get_score_breakdown(top["name"])
 
+price = top.get("price", {})
+current_price = price.get("current_price", 0)
+change_rate = price.get("change_rate", 0)
+volume_ratio = price.get("volume_ratio", 1)
+data_ok = price.get("data_ok", False)
+
 st.markdown("""
 <style>
 .block-container {
@@ -28,108 +34,58 @@ st.markdown("""
     padding-right: 1rem;
     max-width: 430px;
 }
-.title {font-size: 23px; font-weight: 900;}
-.sub {color:#777; font-size:13px; margin-bottom:24px;}
+.title {font-size: 23px; font-weight: 900; color:#111827 !important;}
+.sub {color:#4b5563 !important; font-size:13px; margin-bottom:24px;}
 .main-card {
     border-radius: 22px;
     padding: 20px;
-    background: linear-gradient(135deg, #eef9f1, #ffffff);
+    background: linear-gradient(135deg, #eef9f1, #ffffff) !important;
     border: 1px solid #dcefe2;
     margin-bottom: 18px;
+    color:#111827 !important;
 }
+.main-card * {color:#111827 !important;}
 .action-card {
     border-radius: 22px;
     padding: 20px;
-    background: #111827;
-    color: white;
+    background: #111827 !important;
+    color: white !important;
     margin-bottom: 20px;
 }
-.action-label {font-size: 14px; color: #cbd5e1;}
+.action-card * {color:white !important;}
+.action-label {font-size: 14px; color: #cbd5e1 !important;}
 .action-main {font-size: 34px; font-weight: 900; margin: 6px 0;}
 .stock {font-size: 31px; font-weight: 900;}
 .badge {
     display:inline-block;
     padding:6px 10px;
     border-radius:999px;
-    background:#eef4ff;
+    background:#eef4ff !important;
+    color:#111827 !important;
     font-size:13px;
     margin:3px 3px 8px 0;
 }
-.main-card {
-border-radius: 22px;
-padding: 20px;
-background: linear-gradient(135deg, #eef9f1, #ffffff);
-border: 1px solid #dcefe2;
-margin-bottom: 18px;
-color: #111111 !important;
-}
-
-.action-card {
-border-radius: 22px;
-padding: 20px;
-background: #111827;
-color: white !important;
-margin-bottom: 20px;
-}
-
 .rank-card {
-border: 1px solid #e5e7eb;
-border-radius: 16px;
-padding: 14px;
-margin-bottom: 10px;
-background: #ffffff !important;
-color: #111111 !important;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:14px;
+    margin-bottom:10px;
+    background:#ffffff !important;
+    color:#111827 !important;
 }
-
-.rank-title {
-font-size: 17px;
-font-weight: 800;
-color: #111111 !important;
-}
-
-.small {
-color: #4b5563 !important;
-font-size: 13px;
-}
-
-.reason {
-color: #111111 !important;
-font-size: 14px;
-line-height: 1.8;
-}
-
+.rank-card * {color:#111827 !important;}
+.rank-title {font-size:17px; font-weight:800; color:#111827 !important;}
+.small {color:#4b5563 !important; font-size:13px;}
+.reason {font-size:14px; line-height:1.8; color:#111827 !important;}
 .notice {
-background: #fff8df;
-padding: 12px;
-border-radius: 14px;
-color: #665200 !important;
-font-size: 12px;
-margin-top: 18px;
+    background:#fff8df !important;
+    padding:12px;
+    border-radius:14px;
+    color:#665200 !important;
+    font-size:12px;
+    margin-top: 18px;
 }
-.main-card,
-.rank-card {
-    background: #ffffff !important;
-    color: #111111 !important;
-}
-
-.main-card *,
-.rank-card * {
-    color: #111111 !important;
-}
-
-.small {
-    color: #4b5563 !important;
-}
-
-.action-card,
-.action-card * {
-    color: #ffffff !important;
-}
-
-.notice,
-.notice * {
-    color: #665200 !important;
-}
+.notice * {color:#665200 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -149,6 +105,13 @@ st.markdown(f"""
 
 st.markdown("## 오늘의 컴파스 추천")
 
+price_badge = ""
+if data_ok:
+    price_badge = f"""
+    <span class="badge">현재가 {current_price:,}원</span>
+    <span class="badge">등락률 {change_rate}%</span>
+    """
+
 st.markdown(f"""
 <div class="main-card">
     <div class="stock">{top['name']}</div>
@@ -156,11 +119,39 @@ st.markdown(f"""
     <span class="badge">상승확률 {top['probability']}%</span>
     <span class="badge">{top['judgement']}</span>
     <span class="badge">타이밍 {top['timing']}</span>
+    {price_badge}
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("### 🧭 컴파스 판단")
 st.info(f"{top['summary']}\n\n중기 상승 가능성이 높은 후보로 판단됩니다.")
+
+st.markdown("## 🧾 왜 1등인가?")
+
+with st.container(border=True):
+    st.markdown(f"### {top['name']} 선정 근거")
+    st.write(f"최종점수 **{score['final']}점**은 아래 항목을 종합해 계산했습니다.")
+
+    reason_rows = [
+        ("테마", score["theme"], "오늘 뉴스에서 관련 테마가 얼마나 강하게 부각되는지"),
+        ("차트", score["chart"], "현재가가 주요 이동평균선 위에 있는지"),
+        ("뉴스", score["news"], "긍정/부정 뉴스와 종목·테마 연관성"),
+        ("수급", score["supply"], "거래량이 평소보다 강한지"),
+        ("변동성", score["volatility"], "최근 변동성이 과도하지 않은지"),
+    ]
+
+    for label, value, desc in reason_rows:
+        st.write(f"**{label} {value}점**")
+        st.caption(desc)
+        st.progress(value / 100)
+
+    if data_ok:
+        st.success(
+            f"실제 가격 데이터 반영: 현재가 {current_price:,}원, "
+            f"등락률 {change_rate}%, 거래량 강도 {volume_ratio}배"
+        )
+    else:
+        st.warning("가격 데이터를 불러오지 못해 일부 기본 점수가 적용됐습니다.")
 
 st.markdown("## 📊 점수 분석")
 
@@ -261,10 +252,16 @@ st.markdown("## 오늘의 TOP3")
 medals = ["🥇", "🥈", "🥉"]
 
 for idx, item in enumerate(recs):
+    item_price = item.get("price", {})
+    price_text = ""
+    if item_price.get("data_ok"):
+        price_text = f"<div class='small'>현재가 {item_price.get('current_price', 0):,}원 · 등락률 {item_price.get('change_rate', 0)}%</div>"
+
     st.markdown(f"""
 <div class="rank-card">
     <div class="rank-title">{medals[idx]} {item['name']}</div>
     <div>{item['score']}점 · 상승확률 {item['probability']}% · {item['judgement']}</div>
+    {price_text}
     <div class="small">{item['summary']}</div>
 </div>
 """, unsafe_allow_html=True)

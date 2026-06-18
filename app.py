@@ -109,7 +109,28 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+st.markdown("## 오늘 시장 브리핑")
 
+st.markdown("""
+<div class="rank-card">
+    <div class="rank-title">📊 시장점수 72점</div>
+    <div class="small">시장상태 : 긍정</div>
+</div>
+
+<div class="rank-card">
+    <div class="rank-title">🔥 오늘 강한 테마</div>
+    <div class="small">① 전력 인프라</div>
+    <div class="small">② AI 데이터센터</div>
+    <div class="small">③ 반도체 수급 개선</div>
+</div>
+
+<div class="rank-card">
+    <div class="rank-title">🧭 컴파스 시장 판단</div>
+    <div class="small">
+        오늘 시장은 전력·AI·반도체 중심으로 관심이 몰릴 가능성이 높습니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
 st.markdown("## 추천 이유")
 
 for reason in top["reasons"]:

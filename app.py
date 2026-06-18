@@ -1,6 +1,7 @@
 import streamlit as st
 from recommendation_engine import get_today_recommendations
 
+from theme_engine import get_today_themes
 st.set_page_config(
     page_title="Stock Compass Beta",
     page_icon="🧭",
@@ -131,6 +132,44 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
+themes = get_today_themes()
+
+st.markdown("## 🔥 오늘의 유망 테마")
+
+themes = get_today_themes()
+
+st.markdown("## 🔥 오늘의 유망 테마")
+
+selected_theme_name = st.selectbox(
+    "테마 상세보기",
+    [theme["theme"] for theme in themes]
+)
+
+selected_theme = next(
+    theme for theme in themes if theme["theme"] == selected_theme_name
+)
+
+for theme in themes:
+    st.markdown(f"""
+<div class="rank-card">
+    <div class="rank-title">{theme['rank']}위 {theme['theme']}</div>
+    <div>{theme['grade']} · {theme['status']}</div>
+    <div class="small">관심도 {theme['score']}점</div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("## 테마 상세 분석")
+
+with st.container(border=True):
+    st.markdown(f"### 🔥 {selected_theme['theme']}")
+    st.metric("관심도", f"{selected_theme['score']}점")
+    st.write(f"**등급:** {selected_theme['grade']}")
+    st.write(f"**상태:** {selected_theme['status']}")
+    st.info(selected_theme["reason"])
+
+    st.markdown("#### 관련 종목")
+    for stock in selected_theme["stocks"]:
+        st.write(f"✅ {stock}")
 st.markdown("## 추천 이유")
 
 for reason in top["reasons"]:

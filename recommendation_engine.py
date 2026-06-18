@@ -1,4 +1,5 @@
 from news_engine import get_today_news
+from price_engine import get_price_data
 
 
 def get_today_recommendations():
@@ -8,18 +9,18 @@ def get_today_recommendations():
         {
             "name": "대한전선",
             "theme": "전력",
-            "base": 76,
-            "summary": "전력 인프라 투자 확대 수혜 예상",
+            "base": 55,
+            "summary": "전력 인프라 투자 확대 수혜 후보",
             "reasons": [
                 "전력 인프라 투자 확대 수혜",
                 "AI 데이터센터 전력망 수요 증가",
-                "전력 테마 뉴스 관심 증가"
+                "전력 테마 뉴스 관심"
             ]
         },
         {
             "name": "LS ELECTRIC",
             "theme": "전력",
-            "base": 74,
+            "base": 55,
             "summary": "전력기기·스마트그리드 수혜 후보",
             "reasons": [
                 "전력설비 투자 확대",
@@ -30,7 +31,7 @@ def get_today_recommendations():
         {
             "name": "HD현대일렉트릭",
             "theme": "전력",
-            "base": 73,
+            "base": 55,
             "summary": "전력설비 수출 성장 후보",
             "reasons": [
                 "변압기 수출 성장",
@@ -41,18 +42,18 @@ def get_today_recommendations():
         {
             "name": "SK하이닉스",
             "theme": "AI 반도체",
-            "base": 75,
+            "base": 55,
             "summary": "HBM과 AI 반도체 수요 확대 후보",
             "reasons": [
                 "HBM 수요 증가",
                 "AI 서버 투자 확대",
-                "반도체 뉴스 관심 증가"
+                "반도체 뉴스 관심"
             ]
         },
         {
             "name": "한미반도체",
             "theme": "AI 반도체",
-            "base": 73,
+            "base": 55,
             "summary": "AI 반도체 장비 수혜 후보",
             "reasons": [
                 "HBM 장비 수요 기대",
@@ -63,7 +64,7 @@ def get_today_recommendations():
         {
             "name": "한화에어로스페이스",
             "theme": "방산",
-            "base": 72,
+            "base": 55,
             "summary": "방산 수출 확대 관심 후보",
             "reasons": [
                 "방산 수출 기대",
@@ -74,27 +75,30 @@ def get_today_recommendations():
     ]
 
     for stock in candidates:
-        news_score = 0
+        price = get_price_data(stock["name"])
+        news_score = _calculate_news_score(stock, news_list)
+        theme_score = _calculate_theme_score(stock, news_list)
 
-        for news in news_list:
-            if news["theme"] == stock["theme"]:
-                news_score += 5
+        chart_score = price["chart_score"]
+        volume_score = price["volume_score"]
+        momentum_score = price["momentum_score"]
+        volatility_score = price["volatility_score"]
 
-            if stock["name"] in news["title"]:
-                news_score += 10
+        final_score = round(
+            chart_score * 0.30 +
+            volume_score * 0.20 +
+            news_score * 0.20 +
+            theme_score * 0.20 +
+            volatility_score * 0.10
+        )
 
-            if news["sentiment"] == "긍정":
-                news_score += 3
-            elif news["sentiment"] == "부정":
-                news_score -= 5
-
-        final_score = min(95, stock["base"] + news_score)
-        probability = max(55, min(90, final_score - 6))
-        confidence = max(60, min(88, final_score - 8))
+        probability = max(55, min(90, final_score - 5))
+        confidence = max(60, min(88, final_score - 7))
 
         stock["score"] = final_score
         stock["probability"] = probability
         stock["confidence"] = confidence
+        stock["price"] = price
 
         if final_score >= 82:
             stock["judgement"] = "관심"
@@ -106,11 +110,9 @@ def get_today_recommendations():
             stock["judgement"] = "주의"
             stock["timing"] = "대기"
 
-    sorted_stocks = sorted(
-        candidates,
-        key=lambda x: x["score"],
-        reverse=True
-    )
+        stock["reasons"] = _make_reasons(stock, price, news_score, theme_score)
+
+    sorted_stocks = sorted(candidates, key=lambda x: x["score"], reverse=True)
 
     result = []
 
@@ -125,7 +127,56 @@ def get_today_recommendations():
             "judgement": stock["judgement"],
             "risk": "보통",
             "summary": stock["summary"],
-            "reasons": stock["reasons"]
+            "reasons": stock["reasons"],
+            "price": stock["price"]
         })
 
     return result
+
+
+def _calculate_news_score(stock, news_list):
+    score = 50
+
+    for news in news_list:
+        if news["theme"] == stock["theme"]:
+            score += 6
+
+        if stock["name"] in news["title"]:
+            score += 12
+
+        if news["sentiment"] == "긍정":
+            score += 4
+        elif news["sentiment"] == "부정":
+            score -= 6
+
+    return max(30, min(100, score))
+
+
+def _calculate_theme_score(stock, news_list):
+    theme_count = sum(1 for news in news_list if news["theme"] == stock["theme"])
+
+    if theme_count >= 4:
+        return 90
+    if theme_count >= 3:
+        return 82
+    if theme_count >= 2:
+        return 74
+    if theme_count >= 1:
+        return 65
+    return 55
+
+
+def _make_reasons(stock, price, news_score, theme_score):
+    reasons = []
+
+    if price["data_ok"]:
+        reasons.append(f"실제 차트 점수 {price['chart_score']}점")
+        reasons.append(f"거래량 강도 {price['volume_ratio']}배")
+        reasons.append(f"당일 등락률 {price['change_rate']}%")
+    else:
+        reasons.append("가격 데이터를 불러오지 못해 기본 점수 적용")
+
+    reasons.append(f"뉴스 점수 {news_score}점")
+    reasons.append(f"{stock['theme']} 테마 점수 {theme_score}점")
+
+    return reasons

@@ -1,0 +1,4 @@
+1. stock_compass_beta 폴더 안에 .streamlit 폴더를 만든다.
+2. 이 압축 안의 config.toml 파일을 .streamlit 폴더 안에 넣는다.
+3. git add . → git commit -m "Force light theme" → git push
+4. Streamlit Cloud에서 Reboot 한다.

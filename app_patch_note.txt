@@ -1,0 +1,6 @@
+app.py에 가격 표시를 추가하고 싶으면 오늘의 컴파스 추천 카드 안 badge 부분에 아래 2줄을 추가하세요.
+
+<span class="badge">현재가 {top['price']['current_price']:,}원</span>
+<span class="badge">등락률 {top['price']['change_rate']}%</span>
+
+이미 app.py가 top['score'], top['probability']를 쓰고 있으므로 recommendation_engine.py만 교체해도 실제 점수 기반 순위는 적용됩니다.

@@ -23,6 +23,30 @@ def get_score_breakdown(stock_name):
             "theme": 87,
             "volatility": 72,
             "final": 79
+        },
+        "SK하이닉스": {
+            "chart": 86,
+            "news": 84,
+            "supply": 80,
+            "theme": 90,
+            "volatility": 70,
+            "final": 83
+        },
+        "한미반도체": {
+            "chart": 82,
+            "news": 81,
+            "supply": 77,
+            "theme": 88,
+            "volatility": 68,
+            "final": 80
+        },
+        "한화에어로스페이스": {
+            "chart": 80,
+            "news": 79,
+            "supply": 76,
+            "theme": 84,
+            "volatility": 71,
+            "final": 78
         }
     }
 

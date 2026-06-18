@@ -1,3 +1,4 @@
+from news_engine import get_today_news
 from market_engine import get_market_signal
 import streamlit as st
 from recommendation_engine import get_today_recommendations
@@ -12,6 +13,7 @@ st.set_page_config(
 recs = get_today_recommendations()
 top = recs[0]
 market = get_market_signal()
+news_list = get_today_news()
 st.markdown("""
 <style>
 .block-container {
@@ -137,10 +139,6 @@ themes = get_today_themes()
 
 st.markdown("## 🔥 오늘의 유망 테마")
 
-themes = get_today_themes()
-
-st.markdown("## 🔥 오늘의 유망 테마")
-
 selected_theme_name = st.selectbox(
     "테마 상세보기",
     [theme["theme"] for theme in themes]
@@ -194,6 +192,16 @@ for sector in market["sectors"]:
 </div>
 """, unsafe_allow_html=True)
 
+st.markdown("## 📰 오늘 핵심 뉴스")
+
+for news in news_list:
+    st.markdown(f"""
+<div class="rank-card">
+    <div class="rank-title">{news['title']}</div>
+    <div class="small">테마 : {news['theme']} · 판단 : {news['sentiment']}</div>
+    <div class="small">{news['summary']}</div>
+</div>
+""", unsafe_allow_html=True)
 st.markdown("## 오늘의 TOP3")
 
 medals = ["🥇", "🥈", "🥉"]

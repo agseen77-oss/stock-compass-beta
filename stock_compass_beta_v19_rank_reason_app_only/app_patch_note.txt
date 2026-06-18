@@ -1,0 +1,9 @@
+V20 업데이트는 app.py 수정 없이 동작합니다.
+
+단, 후보군이 늘어나고 실제 순위 산식이 바뀌므로 Streamlit Cloud에서 yfinance 설치가 필요합니다.
+requirements.txt에 yfinance가 없으면 추가하세요.
+
+필요 패키지:
+streamlit
+feedparser
+yfinance
